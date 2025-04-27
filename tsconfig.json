@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "paths": {
+      "@app/*": ["./app/*"],
+      "@helpers/*": ["./app/helpers/*"],
+      "@config/*": ["./app/config/*"],
+      "@controller/*": ["./app/controller/*"],
+      "@middleware/*": ["./app/middleware/*"],
+      "@router/*": ["./app/router/*"]
+    }
+  }
+}

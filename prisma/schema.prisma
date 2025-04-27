@@ -1,0 +1,84 @@
+// -----------------------------------------------------------------------------
+// Prisma Schema for MySQL: User Authentication & App Management
+// -----------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DB_URL")
+}
+
+/// Enumerates the possible roles for a user.
+enum Role {
+  admin
+  member
+  banned
+}
+
+// -----------------------------------------------------------------------------
+// User Model (mapped to tb_users)
+// -----------------------------------------------------------------------------
+model User {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique @db.VarChar(100)
+  password   String   @db.VarChar(255)
+  role       Role     @default(member)
+  is_active  Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  auths Auth[] // One-to-many relation with Auth
+  apps  UserApp[] // Many-tomany relayion with App
+
+  @@map("tb_users")
+}
+
+// -----------------------------------------------------------------------------
+// App Model (mapped to tb_apps)
+// -----------------------------------------------------------------------------
+model App {
+  id   Int    @id @default(autoincrement())
+  name String @db.VarChar(100)
+  url  String @db.VarChar(100)
+
+  users UserApp[]
+
+  @@map("tb_apps")
+}
+
+// -----------------------------------------------------------------------------
+// User-App Relationship Model (mapped to tb_user_apps)
+// Many-to-many relation: One user can have many apps, and apps can be linked
+// to multiple users through this join table.
+// -----------------------------------------------------------------------------
+model UserApp {
+  id      Int @id @default(autoincrement())
+  user_id Int // Foreign key to User
+  app_id  Int // Foreign key to App
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  app  App  @relation(fields: [app_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, app_id])
+  @@map("tb_user_apps")
+}
+
+// -----------------------------------------------------------------------------
+// Authentication Record Model (mapped to tb_auth)
+// -----------------------------------------------------------------------------
+model Auth {
+  id         Int      @id @default(autoincrement())
+  user_id    Int // Foreign key to User
+  ip_address String?  @db.VarChar(60) // Optional: stores client IP
+  user_agent String?  @db.VarChar(200) // Optional: stores browser or client info
+  login_at   DateTime @default(now())
+  is_active  Boolean  @default(true)
+  token      String   @db.VarChar(300)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("tb_auth")
+}
