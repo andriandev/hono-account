@@ -28,9 +28,10 @@ app.post('/auth/login', check_json, Login);
 app.get('/auth/logout', Logout);
 app.get('/auth/verify', is_login, Verify);
 
-app.get('/user/:id?', is_admin, GetUser);
+app.get('/user', is_admin, GetUser);
+app.get('/user/:id', is_login, GetUser);
 app.post('/user', check_json, is_admin, CreateUser);
-app.put('/user/:id', check_json, is_admin, UpdateUser);
+app.put('/user/:id', check_json, is_login, UpdateUser);
 app.delete('/user/:id', is_admin, DeleteUser);
 app.post('/user/activate', check_json, is_admin_or_key, UserActivation);
 

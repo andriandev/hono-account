@@ -9,6 +9,7 @@ export async function GetUser(c: Context) {
   const idUser: any = c.req.param('id');
   const rawQuery = c.req.query();
   const query = UserValidation.GET.parse(rawQuery);
+  const userData = c.get('userData');
   let data: any = {};
 
   if (idUser) {
@@ -22,12 +23,19 @@ export async function GetUser(c: Context) {
       where: {
         id: Number(idUser),
       },
+      omit: { password: true },
       include: { auths: { omit: { id: true, user_id: true } } },
     });
 
     if (!user) {
       throw new HTTPException(400, {
         message: 'User not found',
+      });
+    }
+
+    if (userData.role !== 'admin' && userData.id !== user.id) {
+      throw new HTTPException(403, {
+        message: 'Access forbidden',
       });
     }
 
@@ -98,6 +106,7 @@ export async function CreateUser(c: Context) {
 export async function UpdateUser(c: Context) {
   const idUser: any = c.req.param('id');
   let request = c.get('jsonData');
+  const userData = c.get('userData');
 
   if (isNaN(idUser)) {
     throw new HTTPException(400, {
@@ -117,6 +126,16 @@ export async function UpdateUser(c: Context) {
     throw new HTTPException(400, {
       message: 'User not found',
     });
+  }
+
+  if (userData.role !== 'admin' && userData.id !== user.id) {
+    throw new HTTPException(403, {
+      message: 'Access forbidden',
+    });
+  }
+
+  if (userData.role !== 'admin') {
+    request.role = 'member';
   }
 
   if (request.password) {
