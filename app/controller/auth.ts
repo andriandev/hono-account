@@ -113,7 +113,10 @@ export async function Login(c: Context) {
   const jwtToken = await sign(jwtPayload, APP_JWT_SECRET, 'HS256');
 
   const ipAddress =
-    c.req.header('x-real-ip') || c.req.header('x-forwarded-for') || '';
+    c.req.header('x-real-ip-from-app') ||
+    c.req.header('x-real-ip') ||
+    c.req.header('x-forwarded-for') ||
+    '';
   const userAgent = c.req.header('user-agent') || '';
 
   await prismaClient.auth.create({
