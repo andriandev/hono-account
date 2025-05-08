@@ -46,7 +46,16 @@ export async function GetApp(c: Context) {
       id,
       hash_id: hashId.encode(id),
       ...rest,
+      users: query.take_user
+        ? app.users.map((entry) => ({
+            ...entry.user,
+          }))
+        : [],
     };
+
+    if (!query.take_user) {
+      delete orderedResponse.users;
+    }
 
     data = orderedResponse;
   } else {

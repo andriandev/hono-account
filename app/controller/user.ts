@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { UserValidation } from '@app/validation/user';
 import { prismaClient } from '@app/config/database';
 import { resJSON } from '@app/helpers/function';
+import { hashId } from '@app/helpers/hashids';
 
 export async function GetUser(c: Context) {
   const idUser: any = c.req.param('id');
@@ -24,7 +25,20 @@ export async function GetUser(c: Context) {
         id: Number(idUser),
       },
       omit: { password: true },
-      include: { auths: { omit: { id: true, user_id: true } } },
+      include: {
+        auths: { omit: { id: true, user_id: true } },
+        apps: {
+          select: {
+            app: {
+              select: {
+                id: true,
+                name: true,
+                url: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -39,7 +53,18 @@ export async function GetUser(c: Context) {
       });
     }
 
-    data = user;
+    const formattedUser = {
+      ...user,
+      apps:
+        user?.apps.map(({ app }) => ({
+          id: app.id,
+          hash_id: hashId.encode(app.id),
+          name: app.name,
+          url: app.url,
+        })) ?? [],
+    };
+
+    data = formattedUser;
   } else {
     const limit = query.limit ? Number(query.limit) : 10;
     const offset = query.offset ? Number(query.offset) : 0;
