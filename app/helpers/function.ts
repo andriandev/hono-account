@@ -44,3 +44,25 @@ export function customJwtErrorMessage(
       return 'Invalid token';
   }
 }
+
+export function formatDateTime(timestamp: number): string {
+  try {
+    const timezone: string =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta';
+    const date: Date = new Date(timestamp);
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    };
+
+    return new Intl.DateTimeFormat('en-GB', options).format(date);
+  } catch (err) {
+    return '';
+  }
+}

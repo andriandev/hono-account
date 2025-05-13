@@ -92,13 +92,17 @@ export async function is_admin(c: Context, next: Next) {
 }
 
 export async function is_admin_or_key(c: Context, next: Next) {
-  const authHeader = c.req.header('Authorization');
+  const authHeader = c.req.header('Authorization') || '';
+  const secretKey = c.req.query('key');
 
-  if (!authHeader) throw new HTTPException(401, { message: 'Invalid token' });
+  if (!authHeader && !secretKey)
+    throw new HTTPException(401, { message: 'Invalid token' });
 
   let token = authHeader.startsWith('Bearer ')
     ? authHeader.split(' ')[1]
     : authHeader;
+
+  if (secretKey) token = secretKey;
 
   if (token === APP_SECRET_KEY) return await next();
 

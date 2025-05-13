@@ -9,3 +9,9 @@ export const logger: Logger = winston.createLogger({
     : format.combine(format.colorize(), format.simple()),
   transports: [new transports.Console()],
 });
+
+export const logging: Logger = winston.createLogger({
+  level: 'info',
+  format: format.combine(format.colorize(), format.simple()),
+  transports: [new transports.Console()],
+});

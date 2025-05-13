@@ -15,7 +15,14 @@ import {
   DeleteApp,
   ConnectUserApp,
 } from '@app/controller/app';
-('@app/controller/link');
+import {
+  GetBackup,
+  CreateBackup,
+  DeleteBackup,
+  DownloadBackup,
+  RestoreBackup,
+  UploadBackup,
+} from '@app/controller/db';
 import { is_admin, is_login, is_admin_or_key } from '@app/middleware/auth';
 import { check_json } from '@app/middleware/json';
 
@@ -40,5 +47,12 @@ app.get('/app/:id?', is_admin, GetApp);
 app.post('/app', check_json, is_admin, CreateApp);
 app.put('/app/:id', check_json, is_admin, UpdateApp);
 app.delete('/app/:id', is_admin, DeleteApp);
+
+app.get('/backup', is_admin, GetBackup);
+app.post('/backup/upload', is_admin, UploadBackup);
+app.get('/backup/:filename', is_admin_or_key, DownloadBackup);
+app.post('/backup', check_json, is_admin, CreateBackup);
+app.put('/backup', check_json, is_admin, RestoreBackup);
+app.delete('/backup', is_admin, DeleteBackup);
 
 export default app;
