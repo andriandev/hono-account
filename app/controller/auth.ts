@@ -7,6 +7,7 @@ import { UserValidation } from '@app/validation/user';
 import { prismaClient } from '@app/config/database';
 import { APP_JWT_EXP, APP_JWT_SECRET } from '@app/config/setting';
 import { hashId } from '@app/helpers/hashids';
+import type { UserDataFromAuth } from '@app/middleware/auth';
 
 export async function Register(c: Context) {
   let request = c.get('jsonData');
@@ -176,4 +177,52 @@ export async function Verify(c: Context) {
   });
 
   return c.json(resData, resData.status as 200);
+}
+
+export async function DeleteAuthByUserId(c: Context) {
+  const user: UserDataFromAuth = c.get('userData');
+
+  await prismaClient.auth.deleteMany({
+    where: { user_id: user.id },
+  });
+
+  const resData = resJSON({
+    message: `Deleted all auth by ${user.username} successfully`,
+  });
+
+  return c.json(resData, resData.status as 200);
+}
+
+export async function DeleteAuth(c: Context) {
+  const idAuth: any = c.req.param('AuthId');
+
+  if (isNaN(idAuth)) {
+    throw new HTTPException(400, {
+      message: 'Auth not found',
+    });
+  }
+
+  try {
+    await prismaClient.auth.delete({
+      where: {
+        id: Number(idAuth),
+      },
+    });
+
+    const resData = resJSON({
+      message: 'Deleted auth successfully',
+    });
+
+    return c.json(resData, resData.status as 200);
+  } catch (err) {
+    if (err.code === 'P2025') {
+      // Record to delete not found
+      throw new HTTPException(400, {
+        message: 'Auth not found',
+      });
+    }
+
+    // Handle another error
+    throw err;
+  }
 }

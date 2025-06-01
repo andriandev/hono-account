@@ -1,6 +1,13 @@
 import { Hono } from 'hono';
 import { serveStatic } from 'hono/bun';
-import { Register, Login, Logout, Verify } from '@controller/auth';
+import {
+  Register,
+  Login,
+  Logout,
+  Verify,
+  DeleteAuth,
+  DeleteAuthByUserId,
+} from '@controller/auth';
 import {
   GetUser,
   CreateUser,
@@ -34,6 +41,9 @@ app.post('/auth/register', check_json, Register);
 app.post('/auth/login', check_json, Login);
 app.get('/auth/logout', Logout);
 app.get('/auth/verify', is_login, Verify);
+
+app.delete('/auth/all', is_login, DeleteAuthByUserId);
+app.delete('/auth/:AuthId', is_admin, DeleteAuth);
 
 app.get('/user', is_admin, GetUser);
 app.get('/user/:id', is_login, GetUser);

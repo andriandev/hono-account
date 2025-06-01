@@ -5,6 +5,26 @@ import { customJwtErrorMessage } from '@app/helpers/function';
 import { APP_JWT_SECRET, APP_SECRET_KEY } from '@app/config/setting';
 import { prismaClient } from '@app/config/database';
 
+type Auth = {
+  user_id: number;
+  ip_address: string;
+  referer: string;
+  user_agent: string;
+  login_at: Date;
+  is_active: boolean;
+  token: string;
+};
+
+export type UserDataFromAuth = {
+  id: number;
+  username: string;
+  role: string;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+  auths: Auth[];
+};
+
 async function getUserFromToken(token: string) {
   try {
     const decoded = await verify(token, APP_JWT_SECRET, 'HS256');
@@ -66,7 +86,8 @@ export async function is_login(c: Context, next: Next) {
 
   const token = authHeader.split(' ')[1];
 
-  const { user, userDB } = await getUserFromToken(token);
+  const { user, userDB }: { user: any; userDB: UserDataFromAuth } =
+    await getUserFromToken(token);
   validateUserStatus(user, userDB);
 
   c.set('userData', userDB);
@@ -82,7 +103,8 @@ export async function is_admin(c: Context, next: Next) {
 
   const token = authHeader.split(' ')[1];
 
-  const { user, userDB } = await getUserFromToken(token);
+  const { user, userDB }: { user: any; userDB: UserDataFromAuth } =
+    await getUserFromToken(token);
   validateUserStatus(user, userDB);
   validateAdmin(user, userDB);
 
@@ -109,7 +131,8 @@ export async function is_admin_or_key(c: Context, next: Next) {
   if (!authHeader.startsWith('Bearer '))
     throw new HTTPException(401, { message: 'Invalid token' });
 
-  const { user, userDB } = await getUserFromToken(token);
+  const { user, userDB }: { user: any; userDB: UserDataFromAuth } =
+    await getUserFromToken(token);
   validateUserStatus(user, userDB);
   validateAdmin(user, userDB);
 

@@ -554,3 +554,355 @@ describe('GET /auth/verify', () => {
     expect(data.message).toBe('Invalid token');
   });
 });
+
+describe('DELETE /auth/all', () => {
+  let adminUser: any;
+  let adminToken: string;
+  let anotherUser: any;
+  const testPassword = 'SecurePassword123!';
+
+  const createdUserIds: number[] = [];
+
+  beforeAll(async () => {
+    // Buat user admin dan JWT token-nya dengan alur yang spesifik
+    const hashedPassword = await bcrypt.hash(testPassword, 10);
+    adminUser = await prismaClient.user.create({
+      data: {
+        username: 'admin_delete_test_id',
+        password: hashedPassword,
+        role: 'admin',
+        is_active: true,
+      },
+    });
+    createdUserIds.push(adminUser.id); // Simpan ID user ini
+
+    const payload = {
+      id: adminUser.id,
+      username: adminUser.username,
+      role: adminUser.role,
+      app_id: null,
+      is_active: adminUser.is_active,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + APP_JWT_EXP,
+    };
+
+    adminToken = await sign(payload, APP_JWT_SECRET, 'HS256');
+
+    // Simpan token ke tabel Auth untuk adminUser (sesuai controller Anda)
+    await prismaClient.auth.create({
+      data: {
+        user_id: adminUser.id,
+        token: adminToken,
+        ip_address: '127.0.0.1',
+        user_agent: 'test-agent-admin',
+      },
+    });
+
+    // Buat beberapa data auth tambahan untuk adminUser (untuk memastikan deleteMany berfungsi)
+    await prismaClient.auth.createMany({
+      data: [
+        {
+          user_id: adminUser.id,
+          ip_address: '192.168.1.1',
+          referer: 'http://example.com/a',
+          user_agent: 'TestAgent1',
+          token: 'another_admin_token_1', // Token lain untuk admin
+        },
+        {
+          user_id: adminUser.id,
+          ip_address: '192.168.1.2',
+          referer: 'http://example.com/b',
+          user_agent: 'TestAgent2',
+          token: 'another_admin_token_2', // Token lain untuk admin
+        },
+      ],
+    });
+
+    // Buat user lain dan Auth record-nya untuk memastikan tidak ikut terhapus
+    const anotherHashedPassword = await bcrypt.hash(testPassword, 10);
+    anotherUser = await prismaClient.user.create({
+      data: {
+        username: 'other_user_delete_test_id',
+        password: anotherHashedPassword,
+        role: 'member',
+        is_active: true,
+      },
+    });
+    createdUserIds.push(anotherUser.id); // Simpan ID user ini
+
+    const anotherPayload = {
+      id: anotherUser.id,
+      username: anotherUser.username,
+      role: anotherUser.role,
+      app_id: null,
+      is_active: anotherUser.is_active,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + APP_JWT_EXP,
+    };
+    const anotherUserToken = await sign(
+      anotherPayload,
+      APP_JWT_SECRET,
+      'HS256'
+    );
+
+    await prismaClient.auth.createMany({
+      data: [
+        {
+          user_id: anotherUser.id,
+          ip_address: '10.0.0.1',
+          referer: 'http://another.com/x',
+          user_agent: 'OtherAgent1',
+          token: anotherUserToken,
+        },
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    // Hapus semua User yang ID-nya telah disimpan
+    await prismaClient.user.deleteMany({
+      where: { id: { in: createdUserIds } },
+    });
+  });
+
+  it('should delete all auth records for the authenticated user', async () => {
+    // Verifikasi jumlah auth record adminUser sebelum penghapusan
+    const initialAuthsCount = await prismaClient.auth.count({
+      where: { user_id: adminUser.id },
+    });
+    // Expected: 1 (dari sign) + 2 (dari createMany) = 3
+    expect(initialAuthsCount).toBe(3);
+
+    // Kirim request DELETE dengan token admin
+    const res = await app.request('/auth/all', {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+      },
+    });
+
+    const result = await res.json();
+
+    // Verifikasi status dan pesan respons
+    expect(res.status).toBe(200);
+    expect(result.message).toBe(
+      `Deleted all auth by ${adminUser.username} successfully`
+    );
+
+    // Verifikasi bahwa tidak ada lagi record auth untuk adminUser di database
+    const remainingAuthsCount = await prismaClient.auth.count({
+      where: { user_id: adminUser.id },
+    });
+    expect(remainingAuthsCount).toBe(0);
+
+    // Verifikasi bahwa record auth untuk user lain tidak terhapus
+    const anotherUserAuthsCount = await prismaClient.auth.count({
+      where: { user_id: anotherUser.id },
+    });
+    expect(anotherUserAuthsCount).toBe(1); // Masih ada 1 record
+  });
+
+  it('should return 401 if no token is provided', async () => {
+    const res = await app.request('/auth/all', {
+      method: 'DELETE',
+    });
+
+    const result = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(result.message).toBe('Invalid token');
+  });
+
+  it('should return 401 if an invalid token is provided', async () => {
+    const res = await app.request('/auth/all', {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer invalid.token.here`,
+      },
+    });
+
+    const result = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(result.message).toBe('Invalid JWT token');
+  });
+});
+
+describe('DELETE /auth/:AuthId', () => {
+  let adminUser: any;
+  let adminToken: string;
+  let authToDeleteId: number;
+  let nonAdminUser: any;
+  let nonAdminToken: string;
+  let authToKeepId: number;
+
+  const testPassword = 'SecurePassword123!';
+  const createdUserIds: number[] = [];
+
+  beforeAll(async () => {
+    // Buat admin user dan token
+    const hashedAdminPassword = await bcrypt.hash(testPassword, 10);
+    adminUser = await prismaClient.user.create({
+      data: {
+        username: 'admin_delete_auth',
+        password: hashedAdminPassword,
+        role: 'admin',
+        is_active: true,
+      },
+    });
+    createdUserIds.push(adminUser.id);
+
+    const adminPayload = {
+      id: adminUser.id,
+      username: adminUser.username,
+      role: adminUser.role,
+      app_id: null,
+      is_active: adminUser.is_active,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + APP_JWT_EXP,
+    };
+    adminToken = await sign(adminPayload, APP_JWT_SECRET, 'HS256');
+
+    await prismaClient.auth.create({
+      data: {
+        user_id: adminUser.id,
+        ip_address: '127.0.0.1',
+        user_agent: 'test-agent-delete-me',
+        token: adminToken,
+      },
+    });
+
+    // Buat Auth record yang akan dihapus
+    const authToDelete = await prismaClient.auth.create({
+      data: {
+        user_id: adminUser.id,
+        ip_address: '127.0.0.1',
+        user_agent: 'test-agent-delete-me',
+        token: 'test_admin_token',
+      },
+    });
+    authToDeleteId = authToDelete.id;
+
+    // Buat non-admin user dan token
+    const hashedNonAdminPassword = await bcrypt.hash(testPassword, 10);
+    nonAdminUser = await prismaClient.user.create({
+      data: {
+        username: 'non_admin_delete_auth',
+        password: hashedNonAdminPassword,
+        role: 'member',
+        is_active: true,
+      },
+    });
+    createdUserIds.push(nonAdminUser.id);
+
+    const nonAdminPayload = {
+      id: nonAdminUser.id,
+      username: nonAdminUser.username,
+      role: nonAdminUser.role,
+      app_id: null,
+      is_active: nonAdminUser.is_active,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + APP_JWT_EXP,
+    };
+    nonAdminToken = await sign(nonAdminPayload, APP_JWT_SECRET, 'HS256');
+
+    // Buat Auth record untuk non-admin (tidak boleh dihapus oleh admin)
+    const authToKeep = await prismaClient.auth.create({
+      data: {
+        user_id: nonAdminUser.id,
+        ip_address: '127.0.0.2',
+        user_agent: 'test-agent-keep-me',
+        token: nonAdminToken,
+      },
+    });
+    authToKeepId = authToKeep.id;
+  });
+
+  afterAll(async () => {
+    // Hapus user yang dibuat
+    await prismaClient.user.deleteMany({
+      where: { id: { in: createdUserIds } },
+    });
+  });
+
+  it('should delete an auth record successfully with admin privileges', async () => {
+    // Pastikan auth record ada sebelum dihapus
+    const initialAuth = await prismaClient.auth.findUnique({
+      where: { id: authToDeleteId },
+    });
+    expect(initialAuth).not.toBeNull();
+
+    // Kirim request DELETE dengan token admin
+    const res = await app.request(`/auth/${authToDeleteId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const result = await res.json();
+
+    // Verifikasi respons
+    expect(res.status).toBe(200);
+    expect(result.message).toBe('Deleted auth successfully');
+
+    // Verifikasi auth record telah dihapus dari DB
+    const deletedAuth = await prismaClient.auth.findUnique({
+      where: { id: authToDeleteId },
+    });
+    expect(deletedAuth).toBeNull();
+  });
+
+  it('should return 400 if AuthId is not found', async () => {
+    const nonExistentId = 99999999;
+    const res = await app.request(`/auth/${nonExistentId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const result = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(result.message).toBe('Auth not found');
+  });
+
+  it('should return 400 if AuthId is not a number', async () => {
+    const res = await app.request(`/auth/invalid_id`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const result = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(result.message).toBe('Auth not found');
+  });
+
+  it('should return 401 if no token is provided', async () => {
+    const res = await app.request(`/auth/${authToKeepId}`, {
+      method: 'DELETE',
+    });
+    const result = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(result.message).toBe('Invalid token');
+  });
+
+  it('should return 401 if an invalid token is provided', async () => {
+    const res = await app.request(`/auth/${authToKeepId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer invalid.token.here` },
+    });
+    const result = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(result.message).toBe('Invalid JWT token');
+  });
+
+  it('should return 403 if user is not admin', async () => {
+    // Kirim request DELETE dengan token non-admin
+    const res = await app.request(`/auth/${authToKeepId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${nonAdminToken}` },
+    });
+    const result = await res.json();
+
+    expect(res.status).toBe(403);
+    expect(result.message).toBe('Only admin can access this endpoint');
+  });
+});
