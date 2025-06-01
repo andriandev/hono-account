@@ -26,7 +26,7 @@ export async function GetUser(c: Context) {
       },
       omit: { password: true },
       include: {
-        auths: { omit: { id: true, user_id: true } },
+        auths: { omit: { user_id: true }, orderBy: { id: 'desc' } },
         apps: {
           select: {
             app: {

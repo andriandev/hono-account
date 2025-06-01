@@ -73,6 +73,7 @@ model Auth {
   id         Int      @id @default(autoincrement())
   user_id    Int // Foreign key to User
   ip_address String?  @db.VarChar(60) // Optional: stores client IP
+  referer    String?  @db.VarChar(200) // Optional: stores client referer
   user_agent String?  @db.VarChar(200) // Optional: stores browser or client info
   login_at   DateTime @default(now())
   is_active  Boolean  @default(true)

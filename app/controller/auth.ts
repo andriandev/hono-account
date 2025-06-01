@@ -117,6 +117,7 @@ export async function Login(c: Context) {
     c.req.header('x-real-ip') ||
     c.req.header('x-forwarded-for') ||
     '';
+  const referer = c.req.header('Referer') || '';
   const userAgent = c.req.header('user-agent') || '';
 
   await prismaClient.auth.create({
@@ -125,6 +126,7 @@ export async function Login(c: Context) {
         connect: { id: user.id },
       },
       ip_address: ipAddress,
+      referer,
       user_agent: userAgent,
       token: jwtToken,
     },
